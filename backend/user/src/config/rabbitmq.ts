@@ -1,10 +1,10 @@
-import ampq from "amqplib";
+import amqp from "amqplib";
 
-let channel: ampq.Channel;
+let channel: amqp.Channel;
 
 export const connectRabbitMQ = async () => {
   try {
-    const connection = await ampq.connect({
+    const connection = await amqp.connect({
       protocol: "amqp",
       hostname: process.env.Rabbitmq_Host,
       username: process.env.Rabbitmq_Username,
