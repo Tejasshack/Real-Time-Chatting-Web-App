@@ -1,4 +1,5 @@
-import type { Request, Response } from "express";
+import type { AuthenticatedRequest } from "../middleware/isAuth.js";
+import { response, type Request, type Response } from "express";
 import TryCatch from "../config/TryCatch.js";
 import { redisClient } from "../index.js";
 import { publishToQueue } from "../config/rabbitmq.js";
@@ -119,8 +120,6 @@ export const loginUser = TryCatch(async (req, res) => {
   });
 });
 
-
-
 export const verifyUser = TryCatch(async (req, res) => {
   let { email, otp: enteredOtp } = req.body;
 
@@ -142,7 +141,6 @@ export const verifyUser = TryCatch(async (req, res) => {
     });
   }
 
-
   await redisClient.del(otpKey);
 
   let user = await User.findOne({ email });
@@ -154,7 +152,6 @@ export const verifyUser = TryCatch(async (req, res) => {
     });
   }
 
-  
   const token = generateToken({
     id: user._id.toString(),
     email: String(user.email),
@@ -165,4 +162,43 @@ export const verifyUser = TryCatch(async (req, res) => {
     user,
     token,
   });
+});
+
+export const myProfile = TryCatch(async (req: AuthenticatedRequest, res) => {
+  const user = req.user;
+  res.json(user);
+});
+
+export const updateName = TryCatch(async (req: AuthenticatedRequest, res) => {
+  const user = await User.findById(req.user?._id);
+
+  if (!user) {
+    return res.status(404).json({
+      message: "Please Login",
+    });
+  }
+
+  user.name = req.body.name;
+  await user.save();
+
+  const token = generateToken({
+    id: user._id.toString(),
+    email: String(user.email),
+  });
+
+  res.json({
+    message: "User Updated Successfully",
+    user,
+    token,
+  });
+});
+
+export const getAllUsers = TryCatch(async (req: AuthenticatedRequest, res) => {
+  const users = await User.find();
+  res.json(users);
+});
+
+export const getUser = TryCatch(async (req: AuthenticatedRequest, res) => {
+  const user = await User.findById(req.params.id);
+  res.json(user);
 });

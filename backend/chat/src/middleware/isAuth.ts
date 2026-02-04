@@ -1,11 +1,11 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 
-import { User } from "../model/User.js";
-import type { IUser } from "../model/User.js";
-
 export interface AuthenticatedRequest extends Request {
-  user?: IUser | null;
+  user?: {
+    id: string;
+    email: string;
+  };
 }
 
 interface AuthJwtPayload extends JwtPayload {
@@ -14,8 +14,7 @@ interface AuthJwtPayload extends JwtPayload {
 }
 
 /*
-  🔒 Typed verify function
-  TypeScript ko clear guarantee milti hai
+  🔒 Verify JWT only (NO DB)
 */
 const verifyToken = (token: string): AuthJwtPayload => {
   const secret = process.env.JWT_SECRET;
@@ -25,44 +24,45 @@ const verifyToken = (token: string): AuthJwtPayload => {
 
   const decoded = jwt.verify(token, secret);
 
-  if (typeof decoded !== "object" || decoded === null) {
-    throw new Error("Invalid token payload");
-  }
-
-  if (!("id" in decoded) || !("email" in decoded)) {
+  if (
+    typeof decoded !== "object" ||
+    decoded === null ||
+    !("id" in decoded) ||
+    !("email" in decoded)
+  ) {
     throw new Error("Invalid token payload");
   }
 
   return decoded as AuthJwtPayload;
 };
 
-export const isAuth = async (
+/*
+  🔐 Chat Service Auth Middleware
+*/
+export const isAuth = (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
-): Promise<void> => {
+): void => {
   try {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      res.status(401).json({ message: "Not authorized, token missing" });
+    if (!authHeader?.startsWith("Bearer ")) {
+      res.status(401).json({ message: "Not authorized" });
       return;
     }
 
     const token = authHeader.split(" ")[1];
-
     const payload = verifyToken(token as string);
 
-    const user = await User.findById(payload.id);
+    // ✅ Attach decoded identity ONLY
+    req.user = {
+      id: payload.id,
+      email: payload.email,
+    };
 
-    if (!user) {
-      res.status(401).json({ message: "User not found" });
-      return;
-    }
-
-    req.user = user;
     next();
-  } catch (error) {
-    res.status(401).json({ message: "Not authorized, token invalid" });
+  } catch {
+    res.status(401).json({ message: "Invalid or expired token" });
   }
 };
